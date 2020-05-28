@@ -11,11 +11,6 @@ var_3: &job_defaults
     docker:
         - image: *default_docker_image
 
-# Restores the cache that could be available for the current Yarn lock file.
-var_5: &restore_cache
-    restore_cache:
-        key: *cache_key
-
 # After checkout, rebase on top of master.
 # Similar to travis behavior, but not quite the same.
 # See https://discuss.circleci.com/t/1662
@@ -25,8 +20,28 @@ var_4: &checkout_code
         # which we want. See https://discuss.circleci.com/t/1662
         post: git pull --ff-only origin "refs/pull/${CI_PULL_REQUEST//*pull\//}/merge"
 
+# Restores the cache that could be available for the current Yarn lock file.
+var_5: &restore_cache
+    restore_cache:
+        key: *cache_key
+
+var_6: &sonar
+    <<: *job_defaults
+    steps:
+        -   attach_workspace:
+                at: ~/mosaic
+        - sonarcloud/scan
+
+var_7: &sonar_run
+    context: SonarCloud
+    requires:
+        - test_unit_cdk
+        - test_unit_mosaic-moment-adapter
+        - test_unit_mosaic
+        - test_unit_schematics
+
 orbs:
-    sonarcloud: sonarsource/sonarcloud@1.0.0
+    sonarcloud: sonarsource/sonarcloud@1.0.1
     snyk: snyk/snyk@0.0.8
 
 jobs:
@@ -216,13 +231,11 @@ jobs:
                     name: Deploy "Next" version of Docs
                     command: npx firebase deploy --only hosting:stable --token=$FIREBASE_DEPLOY_TOKEN
 
-
     sonar:
-        <<: *job_defaults
-        steps:
-            - attach_workspace:
-                  at: ~/mosaic
-            - sonarcloud/scan
+        <<: *sonar
+
+    sonar_for_forks:
+        <<: *sonar
 
     snapshot_publish:
         <<: *job_defaults
@@ -322,14 +335,24 @@ workflows:
                               - /\d+\.\d+\.x/
 
             # 7 Group
+            - approve_sonar:
+                  type: approval
+                  filters:
+                      branches:
+                          # only from forks
+                          only: /^pull\/.*$/
 
             - sonar:
-                  context: SonarCloud
+                  <<: *sonar_run
+
+            - sonar_for_forks:
+                  <<: *sonar_run
                   requires:
-                      - test_unit_cdk
-                      - test_unit_mosaic-moment-adapter
-                      - test_unit_mosaic
-                      - test_unit_schematics
+                      - approve_sonar
+                  filters:
+                      branches:
+                          # only from forks
+                          only: /^pull\/.*$/
 
             - snapshot_publish:
                   requires:
