@@ -27,7 +27,7 @@ var_4: &checkout_code
 
 orbs:
     sonarcloud: sonarsource/sonarcloud@1.0.0
-    snyk: snyk/snyk@0.0.8
+    snyk: snyk/snyk@0.0.10
 
 jobs:
 
