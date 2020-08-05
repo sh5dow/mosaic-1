@@ -25,6 +25,17 @@ var_4: &checkout_code
         # which we want. See https://discuss.circleci.com/t/1662
         post: git pull --ff-only origin "refs/pull/${CI_PULL_REQUEST//*pull\//}/merge"
 
+var_6: &only_forks
+    filters:
+        branches:
+            only: /^pull\/.*$/
+
+var_7: &not_forks
+    filters:
+        branches:
+            ignore: /^pull\/.*$/
+
+
 orbs:
     sonarcloud: sonarsource/sonarcloud@1.0.0
     snyk: snyk/snyk@0.0.8
@@ -271,11 +282,21 @@ workflows:
     version: 2
     default_workflow:
         jobs:
+            - allow_security_workflow:
+                  type: approval
+                  <<: *only_forks
+
             # 1 Group
             - install
 
             # 2 Group Validators
             - dependencies_audit:
+                  <<: *only_forks
+                  requires:
+                      - allow_security_workflow
+                      - install
+            - dependencies_audit:
+                  <<: *not_forks
                   requires:
                       - install
             - validate_licenses:
@@ -289,7 +310,6 @@ workflows:
             - build_packages:
                   requires:
                       - validate_licenses
-                      - dependencies_audit
 
             # 6 Group Unit Tests
             - test_unit_cdk:
@@ -324,12 +344,23 @@ workflows:
             # 7 Group
 
             - sonar:
+                  <<: *not_forks
                   context: SonarCloud
                   requires:
                       - test_unit_cdk
                       - test_unit_mosaic-moment-adapter
                       - test_unit_mosaic
                       - test_unit_schematics
+            - sonar:
+                  <<: *only_forks
+                  context: SonarCloud
+                  requires:
+                      - allow_security_workflow
+                      - test_unit_cdk
+                      - test_unit_mosaic-moment-adapter
+                      - test_unit_mosaic
+                      - test_unit_schematics
+
 
             - snapshot_publish:
                   requires:
