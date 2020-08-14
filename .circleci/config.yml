@@ -282,6 +282,16 @@ jobs:
             - run: printenv
             - run: yarn run docs:publish-preview
 
+    publish-npm:
+        <<: *job_defaults
+        steps:
+            - *checkout_code
+            - *restore_cache
+            - attach_workspace:
+                at: ~/mosaic
+            - run: yarn run release:publish-ci
+
+
     cleanup_preview_mosaic_docs:
         <<: *job_defaults
         steps:
@@ -399,6 +409,18 @@ workflows:
                       - build_mosaic_docs_for_preview
                   filters:
                       <<: *ignore_release_branches
+
+            - publish-npm:
+                  requires:
+                      - test_unit_mosaic
+                      - test_unit_cdk
+                      - test_unit_mosaic-moment-adapter
+                      - test_unit_schematics
+                  filters:
+                      branches:
+                          ignore: /.*/
+                      tags:
+                          only: /^\d+\.\d+\.\d+$/
 
             - cleanup_preview_mosaic_docs:
                   requires:
